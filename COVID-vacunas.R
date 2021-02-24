@@ -1,79 +1,8 @@
+source("R/data-preparation.R")
 
-# Libraries ---------------------------------------------------------------
+list_DF_vacunas = get_vacunas()
 
-library(dplyr)
-library(ggplot2)
-library(janitor)
-library(readr)
-library(scales)
-library(tidyr)
-
-# Parameters --------------------------------------------------------------
-
-options(scipen = 999)
-
-ultimos_n_dias = 21
-fecha_final = "2022/6/1"
-
-
-
-# Read and prepare data-----------------------------------------------------
-
-DF_poblacion = read_csv("datos/2915c.csv", 
-                        locale = locale(grouping_mark = "."),
-                        col_types = 
-                          cols(
-                            ccaa = col_character(),
-                            poblacion = col_number())) %>% 
-  filter(ccaa != "España")
-  
-
-DF = read_csv("https://raw.githubusercontent.com/datadista/datasets/master/COVID%2019/ccaa_vacunas.csv", 
-           locale = locale(grouping_mark = "."),
-           col_types = 
-              cols(
-                .default = col_number(),
-                `Fecha publicación` = col_date(format = "%Y-%m-%d"),
-                CCAA = col_character(),
-                `Porcentaje sobre entregadas` = col_number(),
-                `Fecha de la última vacuna registrada` = col_date(format = "%d/%m/%Y"),
-                `Última fecha de actualización` =  col_date(format = "%d/%m/%Y"))) %>% 
-  janitor::clean_names() %>% 
-  filter(ccaa != "España") %>% 
-  select(fecha_publicacion, ccaa, dosis_administradas, personas_con_pauta_completa) %>% 
-  mutate(source = "vacunas")
-
-last_day_data = max(DF %>% filter(source == "vacunas") %>% .$fecha_publicacion)
-
-DF_futuro = tibble(ccaa = unique(DF_poblacion$ccaa),
-                   dosis_administradas = NA,
-                   personas_con_pauta_completa = NA) %>% 
-  group_by(ccaa) %>% 
-  expand_grid(fecha_publicacion = seq(max(DF$fecha_publicacion) + 1, as.Date(fecha_final), "days")) %>% 
-  mutate(source = "prediction")
-
-
-
-
-# Models-------------------------------------------------------------------
-
-model_pauta_completa = lm(personas_con_pauta_completa ~ ccaa * fecha_publicacion,
-           data = DF %>% filter(fecha_publicacion > max(fecha_publicacion) - ultimos_n_dias)) # Usamos datos de los ultimos_n_dias
-
-model_dosis_administradas = lm(dosis_administradas ~ ccaa * fecha_publicacion,
-           data = DF %>% filter(fecha_publicacion > max(fecha_publicacion) - ultimos_n_dias)) # Usamos datos de los ultimos_n_dias
-
-
-DF_futuro_prediction =
-  DF %>%
-  bind_rows(
-    DF_futuro %>%
-      mutate(personas_con_pauta_completa = predict(model_pauta_completa, newdata = DF_futuro),
-             dosis_administradas = predict(model_dosis_administradas, newdata = DF_futuro))
-  ) %>%
-left_join(DF_poblacion, by = "ccaa")
-
-
+DF_futuro_prediction = list_DF_vacunas$DF_futuro_prediction
 
 # Plot Proyeccion [personas_con_pauta_completa] --------------------------------------------------------------
 

@@ -4,6 +4,8 @@ Predicción sobre el avance ritmo de vacunación COVID por comunidad autónoma e
 
 Se emplea un modelo lineal muy sencillo: `lm(personas_con_pauta_completa ~ ccaa * fecha_publicacion)`  
 
+Se puede consultar una versión interactiva aquí: https://gorkang.shinyapps.io/COVID-vacunas/
+
 
 ### Datos
 
