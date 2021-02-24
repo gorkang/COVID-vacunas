@@ -13,9 +13,8 @@ Se puede consultar una versión interactiva aquí: https://gorkang.shinyapps.io/
 - Datos sobre población extraidos del INE: https://www.ine.es/jaxiT3/Datos.htm?t=2915
 
 
-### Gráficos 
+### Web interactiva
 
-Proyección de avance de personas con pauta de vacunación completa:  
+Proyección de avance de personas con pauta de vacunación completa:  https://gorkang.shinyapps.io/COVID-vacunas/  
 
-![](https://github.com/gorkang/COVID-vacunas/raw/master/outputs/plot_proyeccion_personas_con_pauta_completa.png)
-
+![](https://github.com/gorkang/COVID-vacunas/raw/master/outputs/movie.gif)
