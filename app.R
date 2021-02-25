@@ -5,20 +5,16 @@ library(dplyr)
 # library(DT)
 library(forcats)
 library(ggplot2)
-# library(ggrepel)
-# library(httr)
-# library(jsonlite)
 library(janitor)
 library(lubridate)
 library(readr)
-# library(rvest)
 library(tidyr)
 library(scales)
 library(shiny)
 library(shinythemes)
 library(shinyWidgets)
 library(shinyjs)
-
+library(stringr)
 # library(vroom)
 
 
@@ -70,6 +66,15 @@ ui <-
                 ),
             align = "center"),
 
+            
+            shiny::selectInput(inputId = 'variable_name', 
+                               label = 'Variable',
+                               choices = c("dosis_entregadas_totales", "personas_con_pauta_completa", "dosis_administradas"),
+                               multiple = FALSE, 
+                               width = "100%", 
+                               selected = c("personas_con_pauta_completa")),
+
+                        
     shiny::selectInput(inputId = 'ccaa', 
                        label = 'Comunidades autónomas',
                        choices = ccaa_menu,
@@ -79,7 +84,7 @@ ui <-
                        selected = c(ccaa_menu)),
     
     shiny::dateInput("fecha_final", "Proyección hasta", value = "2022-02-01"),
-    shiny::sliderInput('ultimos_n_dias', "Días usados para calcular ritmo de vacunación", min = 2, max = 60, value = 21, step = 1),
+    shiny::sliderInput('ultimos_n_dias', "Días anteriores usados para la previsión", min = 2, max = 60, value = 21, step = 1),
     
 
     HTML("<BR>"),
@@ -107,9 +112,11 @@ ui <-
                 
         # SHOW PLOT
         mainPanel( width = 10,
-                   HTML('<span style="font-size: 150%">Personas con pauta de vacunación completa</span>', 
-                        '[<span style="color: ', alpha("#F8766D", 1), ';">Vacunadas</span>, <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>]',
-                        '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", style = "float:right;"></a>'),
+                   h4(htmlOutput("VARIABLE")),
+                   # uiOutput("VARIABLE", inline = FALSE),
+                   # HTML('<span style="font-size: 150%">Personas con pauta de vacunación completa</span>', 
+                   #      '[<span style="color: ', alpha("#F8766D", 1), ';">Vacunadas</span>, <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>]',
+                   #      '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", style = "float:right;"></a>'),
             
             hr(),
             
@@ -136,12 +143,18 @@ server <- function(input, output, session) {
         span(
             HTML(
             # h6(
-                paste0("La proyección está basada en una sencilla extrapolación del ritmo de vacunación en los últimos ", input$ultimos_n_dias, " días.", br(), br(), 
+                paste0("La proyección está basada en una sencilla extrapolación del ritmo de vacunación/dosis entregadas en los últimos ", input$ultimos_n_dias, " días.", br(), br(), 
                "Puedes reportar errores ", a("aquí!", href = "https://github.com/gorkang/COVID-vacunas/issues", target = "_blank"))),
              style = "color:darkred")
              # )
     })
 
+    output$VARIABLE <- renderUI({
+        if (input$variable_name == "dosis_entregadas_totales") variable_text = "Dosis"
+        if (input$variable_name == "personas_con_pauta_completa") variable_text = "Vacunadas"
+        if (input$variable_name == "dosis_administradas") variable_text = "Dosis"
+        HTML(paste0(stringr::str_to_sentence(gsub("_", " ", input$variable_name), locale = "en"), " a ", final_df()$last_day_data, ' (<span style="color: ', alpha("#F8766D", 1), ';">', variable_text, '</span>, <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>)', '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", style = "float:right;"></a>'))
+        })
 
     # Debounce critical vars --------------------------------------------------
 
@@ -149,7 +162,7 @@ server <- function(input, output, session) {
     INPUT_ccaa_debounced <- debounce(INPUT_ccaa, 600)
     
     INPUT_ultimos_n_dias = reactive({input$ultimos_n_dias})
-    INPUT_ultimos_n_dias_debounced <- debounce(INPUT_ultimos_n_dias, 500)
+    INPUT_ultimos_n_dias_debounced <- debounce(INPUT_ultimos_n_dias, 600)
     
     
 
@@ -163,7 +176,7 @@ server <- function(input, output, session) {
             req(input$fecha_final)
             req(INPUT_ccaa_debounced())
             
-            list_DF_vacunas = get_vacunas(ccaa_filter = INPUT_ccaa_debounced(), ultimos_n_dias = (INPUT_ultimos_n_dias_debounced() + 1), fecha_final = input$fecha_final)
+            list_DF_vacunas = get_vacunas(ccaa_filter = INPUT_ccaa_debounced(), ultimos_n_dias = (INPUT_ultimos_n_dias_debounced() + 1), fecha_final = input$fecha_final, variable_name = input$variable_name)
             list_DF_vacunas
             
         })
@@ -186,37 +199,35 @@ server <- function(input, output, session) {
             DF_intercept_personas_con_pauta_completa = 
                 DF_futuro_prediction %>% 
                 group_by(ccaa) %>% 
-                filter(personas_con_pauta_completa > poblacion * .7) %>% 
+                filter(get(input$variable_name) > poblacion * .7) %>% 
                 filter(fecha_publicacion == min(fecha_publicacion))
             
             
             
             plot_proyeccion_personas_con_pauta_completa = 
                 DF_futuro_prediction %>%
-                ggplot(aes(fecha_publicacion, personas_con_pauta_completa, fill = ccaa)) +
+                ggplot(aes_string("fecha_publicacion", input$variable_name, fill = "ccaa")) +
+                
+                # ggplot(aes(fecha_publicacion, input$variable_name, fill = ccaa)) +
                 geom_bar(stat = "identity", aes(alpha = source_alpha)) +
                 # geom_hline(aes(yintercept = poblacion), linetype = "dashed") +
                 geom_hline(aes(yintercept = poblacion * .7), linetype = "dashed", color = "red") +
                 geom_vline(aes(xintercept = last_day_data), linetype = "dashed", color = "grey") +
                 geom_vline(data = DF_intercept_personas_con_pauta_completa, aes(xintercept = fecha_publicacion), linetype = "dashed", color = "darkgreen") +
                 # annotate(geom = "text", x = as.Date("2021-10-05"), y = 100, label = "Proyección", size = 2) +
-                theme_minimal(base_size = 14) +
+                theme_minimal(base_size = 16) +
                 # scale_y_continuous(labels = scales::comma, n.breaks = 5) +  
                 scale_y_continuous(labels = scales::label_number_si(), n.breaks = 5) +
 
                 scale_x_date(breaks = "1 month", guide = guide_axis(angle = 90), date_labels = "%Y-%m") +
                 facet_wrap(~ ccaa, scales = "free_y") +
-                theme(legend.position = "none",
-                      # axis.text.x=element_blank()
-                      ) +
+                theme(legend.position = "none") +
                 labs(x = "", y = "Personas con pauta de vacunación completa",
                     # title = "Personas con pauta de vacunación completa",
-                    # title = paste0("Proyección desde ", last_day_data),
+                    # subtitle = paste0("Proyección desde ", last_day_data),
                     caption = paste0("linea roja = 70% población\n\nDatos extraidos de @datadista. Por @gorkang")
                     )
             # Usando información del ritmo de vacunación de los últimos ", INPUT_ultimos_n_dias_debounced(), " días\n\n
-            
-
             
             plot_proyeccion_personas_con_pauta_completa
                 
