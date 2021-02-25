@@ -42,15 +42,15 @@ ccaa_menu = read_csv("datos/2915c.csv",
 ui <- 
     function(request) {
         fluidPage(
-            # tags$head(includeHTML(("google-analytics.html"))),
+            tags$head(includeHTML(("google-analytics.html"))),
             useShinyjs(),
             
         titlePanel(
-            windowTitle = "Vacunación COVID - Facultad de Psicología - UAI",
-            fluidRow(
-                column(9, HTML("<a href=\"https://gorkang.shinyapps.io/COVID-vacunas/\">Vacunación COVID</a>")), 
-                column(1, HTML("<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ='Universidad Adolfo Ibáñez'></a>"))
-            )
+            windowTitle = "Vacunación COVID - Facultad de Psicología - UAI",title = ""
+            # fluidRow(
+            #     column(10, HTML("<a href=\"https://gorkang.shinyapps.io/COVID-vacunas/\">Vacunación COVID</a>")), 
+            #     column(1, HTML("<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ='Universidad Adolfo Ibáñez'></a>"))
+            # )
         ),
     theme = shinytheme("flatly"),
     
@@ -59,8 +59,9 @@ ui <-
             width = 2,
 
             div(
-             
+                
             HTML(paste0(
+                "<a href=\"https://gorkang.shinyapps.io/COVID-vacunas/\" style='font-size: 150%'>Vacunación COVID</a>", br(), br(),
                 a(img(src = "github_small.png", title = "Github repository"), href = "https://github.com/gorkang/COVID-vacunas", target = "_blank"), "&nbsp;&nbsp;",
                 a(img(src = "issue_small.png", title = "Report an issue!"), href = "https://github.com/gorkang/COVID-vacunas/issues", target = "_blank"), "&nbsp;&nbsp;",
                 a(img(src = "twitter_small.png", title = "@gorkang"), href = "https://twitter.com/gorkang", target = "_blank"), "&nbsp;&nbsp;", 
@@ -89,7 +90,9 @@ ui <-
     div(style = "display:inline-block;30%;text-align: center;",
         downloadButton('downloadPlot', 'Plot')),
     
-    HTML("<BR><BR>"),
+    # HTML("<BR><BR>"),
+    br(),
+    br(),
     
     uiOutput("WARNING"),
     
@@ -103,12 +106,14 @@ ui <-
 
                 
         # SHOW PLOT
-        mainPanel(
-            h2("Personas con pauta de vacunación completa"),
+        mainPanel( width = 10,
+                   HTML('<span style="font-size: 150%">Personas con pauta de vacunación completa</span>', 
+                        '[<span style="color: ', alpha("#F8766D", 1), ';">Vacunadas</span>, <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>]',
+                        '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", style = "float:right;"></a>'),
             
             hr(),
             
-            plotOutput("distPlot", height = "800px", width = "100%"),
+            plotOutput("distPlot", height = "850px", width = "100%"),
             
             hr()
             
@@ -131,8 +136,8 @@ server <- function(input, output, session) {
         span(
             HTML(
             # h6(
-                paste0("La proyección de avance en la vacunación está basada en los datos disponibles hasta el momento. Si el ritmo de vacunación cambia, esto afectará al avance previsto.", br(), br(), 
-               "La proyección puede contener errores. Puedes reportarlos ", a("aquí!", href = "https://github.com/gorkang/COVID-vacunas/issues", target = "_blank"))),
+                paste0("La proyección está basada en una sencilla extrapolación del ritmo de vacunación en los últimos ", input$ultimos_n_dias, " días.", br(), br(), 
+               "Puedes reportar errores ", a("aquí!", href = "https://github.com/gorkang/COVID-vacunas/issues", target = "_blank"))),
              style = "color:darkred")
              # )
     })
@@ -189,22 +194,29 @@ server <- function(input, output, session) {
             plot_proyeccion_personas_con_pauta_completa = 
                 DF_futuro_prediction %>%
                 ggplot(aes(fecha_publicacion, personas_con_pauta_completa, fill = ccaa)) +
-                geom_bar(stat = "identity", aes(alpha = source)) +
+                geom_bar(stat = "identity", aes(alpha = source_alpha)) +
                 # geom_hline(aes(yintercept = poblacion), linetype = "dashed") +
                 geom_hline(aes(yintercept = poblacion * .7), linetype = "dashed", color = "red") +
                 geom_vline(aes(xintercept = last_day_data), linetype = "dashed", color = "grey") +
                 geom_vline(data = DF_intercept_personas_con_pauta_completa, aes(xintercept = fecha_publicacion), linetype = "dashed", color = "darkgreen") +
                 # annotate(geom = "text", x = as.Date("2021-10-05"), y = 100, label = "Proyección", size = 2) +
-                theme_minimal() +
-                scale_y_continuous(labels = scales::comma, n.breaks = 5) +
+                theme_minimal(base_size = 14) +
+                # scale_y_continuous(labels = scales::comma, n.breaks = 5) +  
+                scale_y_continuous(labels = scales::label_number_si(), n.breaks = 5) +
+
                 scale_x_date(breaks = "1 month", guide = guide_axis(angle = 90), date_labels = "%Y-%m") +
-                facet_wrap(~ ccaa, scales = "free") +
-                theme(legend.position = "none") +
-                labs(
+                facet_wrap(~ ccaa, scales = "free_y") +
+                theme(legend.position = "none",
+                      # axis.text.x=element_blank()
+                      ) +
+                labs(x = "", y = "Personas con pauta de vacunación completa",
                     # title = "Personas con pauta de vacunación completa",
-                    title = paste0("Proyección desde ", last_day_data),
-                    caption = paste0("Usando información del ritmo de vacunación de los últimos ", INPUT_ultimos_n_dias_debounced(), " días\n\nlinea roja = 70% población\n\nDatos extraidos de @datadista")
+                    # title = paste0("Proyección desde ", last_day_data),
+                    caption = paste0("linea roja = 70% población\n\nDatos extraidos de @datadista. Por @gorkang")
                     )
+            # Usando información del ritmo de vacunación de los últimos ", INPUT_ultimos_n_dias_debounced(), " días\n\n
+            
+
             
             plot_proyeccion_personas_con_pauta_completa
                 
@@ -226,7 +238,7 @@ server <- function(input, output, session) {
     
     output$downloadPlot <- downloadHandler(
         filename = function() { paste(Sys.Date(), "_vacunacion.png", sep = "") },
-        content = function(file) { ggsave(file, plot = final_plot(), device = "png", width = 14, height = 10) }
+        content = function(file) { ggsave(file, plot = final_plot(), device = "png", width = 18, height = 10, dpi = 300) }
     )
 
 }

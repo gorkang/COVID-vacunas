@@ -50,9 +50,7 @@ DF = read_csv("https://raw.githubusercontent.com/datadista/datasets/master/COVID
   select(fecha_publicacion, ccaa, dosis_administradas, personas_con_pauta_completa) %>% 
   mutate(source = "vacunas") %>% 
   filter(ccaa %in% ccaa_filter) %>% 
-  mutate(ccaa = as.factor(ccaa),
-         ccaa = forcats::fct_relevel(ccaa, "España")
-  )
+  mutate(ccaa = as.factor(ccaa)) #ccaa = forcats::fct_relevel(ccaa, "España") # Error si filtro no incluye a España
 
 
 last_day_data = max(DF %>% filter(source == "vacunas") %>% .$fecha_publicacion)
@@ -97,7 +95,12 @@ DF_futuro_prediction =
       mutate(personas_con_pauta_completa = predict(model_pauta_completa, newdata = DF_futuro),
              dosis_administradas = predict(model_dosis_administradas, newdata = DF_futuro))
   ) %>%
-  left_join(DF_poblacion, by = "ccaa")
+  left_join(DF_poblacion, by = "ccaa") %>% 
+  mutate(source_alpha = 
+           case_when(
+             source == "vacunas" ~ 1,
+             source == "prediction" ~ .2
+           ))
 
 list_DFs = list(last_day_data = last_day_data,
                 DF_vacunas = DF,
