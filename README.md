@@ -1,6 +1,6 @@
 # COVID-vacunas
 
-Predicción sobre el avance ritmo de vacunación COVID por comunidad autónoma en España.  
+Predicción sobre el avance ritmo de vacunación y llegada de vacunas COVID por comunidad autónoma en España.  
 
 Se emplea un modelo lineal muy sencillo: `lm(personas_con_pauta_completa ~ ccaa * fecha_publicacion)`  
 
