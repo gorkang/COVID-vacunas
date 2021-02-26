@@ -11,6 +11,7 @@ get_vacunas <- function(ccaa_filter, ultimos_n_dias = 21, fecha_final = "2022/6/
   library(readr)
   library(scales)
   library(tidyr)
+  library(vroom)
   
   
 # Parameters --------------------------------------------------------------
@@ -39,7 +40,9 @@ DF_poblacion =
   filter(ccaa %in% ccaa_filter)
 
 
-DF_raw = read_csv("https://raw.githubusercontent.com/datadista/datasets/master/COVID%2019/ccaa_vacunas.csv", 
+DF_raw = vroom::vroom("https://raw.githubusercontent.com/datadista/datasets/master/COVID%2019/ccaa_vacunas.csv",
+# DF_raw = read_csv("datos/DF_raw.csv",
+                      
               locale = locale(grouping_mark = "."),
               col_types = 
                 cols(
@@ -50,6 +53,7 @@ DF_raw = read_csv("https://raw.githubusercontent.com/datadista/datasets/master/C
                   `Fecha de la última vacuna registrada` = col_date(format = "%d/%m/%Y"),
                   `Última fecha de actualización` =  col_date(format = "%d/%m/%Y"))) %>% 
   janitor::clean_names()
+
 
 write_csv(DF_raw, "datos/DF_raw.csv")
 
