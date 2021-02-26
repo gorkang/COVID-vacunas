@@ -15,7 +15,7 @@ library(shinythemes)
 library(shinyWidgets)
 library(shinyjs)
 library(stringr)
-# library(vroom)
+library(vroom)
 
 
 
@@ -51,6 +51,8 @@ ui <-
     theme = shinytheme("flatly"),
     
     sidebarLayout(
+        
+        ## Sidepanel ----
         sidebarPanel(
             width = 2,
 
@@ -73,44 +75,44 @@ ui <-
                                multiple = FALSE, 
                                width = "100%", 
                                selected = c("personas_con_pauta_completa")),
+        
+                                
+            shiny::selectInput(inputId = 'ccaa', 
+                               label = 'Comunidades autónomas',
+                               choices = ccaa_menu,
+                               multiple = TRUE, 
+                               selectize = TRUE, 
+                               width = "100%", 
+                               selected = c(ccaa_menu)),
+            
+            shiny::dateInput("fecha_final", "Proyección hasta", value = "2021-12-31"),
+            shiny::sliderInput('ultimos_n_dias', "Días anteriores usados para la previsión", min = 2, max = 60, value = 21, step = 1),
+            shiny::sliderInput('poblacion_objetivo', "% población objetivo", min = 0, max = 100, value = 70, step = 1),
+            
+            HTML("<BR>"),
 
-                        
-    shiny::selectInput(inputId = 'ccaa', 
-                       label = 'Comunidades autónomas',
-                       choices = ccaa_menu,
-                       multiple = TRUE, 
-                       selectize = TRUE, 
-                       width = "100%", 
-                       selected = c(ccaa_menu)),
-    
-    shiny::dateInput("fecha_final", "Proyección hasta", value = "2022-02-01"),
-    shiny::sliderInput('ultimos_n_dias', "Días anteriores usados para la previsión", min = 2, max = 60, value = 21, step = 1),
-    
-
-    HTML("<BR>"),
-
-    div( HTML("&nbsp;&nbsp;"), style = "display:inline-block;65%;text-align: center;",
-        bookmarkButton(label = "URL")), 
-    HTML("&nbsp;&nbsp;"),
-    div(style = "display:inline-block;30%;text-align: center;",
-        downloadButton('downloadPlot', 'Plot')),
-    
-    # HTML("<BR><BR>"),
-    br(),
-    br(),
-    
-    uiOutput("WARNING"),
-    
-    hr(),
-    
-    HTML(paste0("Datos del Ministerio de Sanidad obtenidos a través de ",  
-            a("@datadista", href = "https://github.com/datadista/datasets/tree/master/COVID%2019", target = "_blank"), 
-            ". Datos sobre población obtenidos desde la página del ", a("INE", href = "https://www.ine.es/jaxiT3/Datos.htm?t=2915", target = "_blank"), ".")
-         )
-        ),
+            div( HTML("&nbsp;&nbsp;"), style = "display:inline-block;65%;text-align: center;",
+                bookmarkButton(label = "URL")), 
+            HTML("&nbsp;&nbsp;"),
+            div(style = "display:inline-block;30%;text-align: center;",
+                downloadButton('downloadPlot', 'Plot')),
+            
+            # HTML("<BR><BR>"),
+            br(),
+            br(),
+            
+            uiOutput("WARNING"),
+            
+            hr(),
+            
+            HTML(paste0("Datos del Ministerio de Sanidad obtenidos a través de ",  
+                    a("@datadista", href = "https://github.com/datadista/datasets/tree/master/COVID%2019", target = "_blank"), 
+                    ". Datos sobre población obtenidos desde la página del ", a("INE", href = "https://www.ine.es/jaxiT3/Datos.htm?t=2915", target = "_blank"), ".")
+                 )
+                ),
 
                 
-        # SHOW PLOT
+        ## Main panel ----
         mainPanel( width = 10,
                    h4(htmlOutput("VARIABLE")),
                    # uiOutput("VARIABLE", inline = FALSE),
@@ -164,11 +166,13 @@ server <- function(input, output, session) {
     INPUT_ultimos_n_dias = reactive({input$ultimos_n_dias})
     INPUT_ultimos_n_dias_debounced <- debounce(INPUT_ultimos_n_dias, 600)
     
-    
+    INPUT_poblacion_objetivo = reactive({input$poblacion_objetivo / 100})
+    INPUT_poblacion_objetivo_debounced <- debounce(INPUT_poblacion_objetivo, 600)
+
 
     # final_df() creation -----------------------------------------------------
     
-    final_df = reactive({ 
+    final_df <- reactive({ 
 
         withProgress(message = 'Preparando datos', value = 1, min = 0, max = 3, {
             
@@ -182,56 +186,58 @@ server <- function(input, output, session) {
         })
     }) 
 
-
+    DF_intercept <- reactive({
+        
+        req(final_df())
+        req(input$variable_name)
+        req(INPUT_poblacion_objetivo_debounced())
+        
+        DF_futuro_prediction = final_df()$DF_futuro_prediction
+        
+        DF_intercept = DF_futuro_prediction %>% 
+            group_by(ccaa) %>% 
+            filter(get(input$variable_name) > (poblacion * INPUT_poblacion_objetivo_debounced())) %>% 
+            filter(fecha_publicacion == min(fecha_publicacion))
+        
+        DF_intercept
+        
+        })
 
     # Prepare plot
     final_plot <- reactive({
 
         withProgress(message = 'Preparando gráfica', value = 2, min = 0, max = 3, {
-                
+            
+            req(final_df())
+            
+            req(DF_intercept())
+            req(INPUT_poblacion_objetivo_debounced())
+            
+            
             DF_futuro_prediction = final_df()$DF_futuro_prediction
             last_day_data = final_df()$last_day_data
             
             
             
-            # Plot Proyeccion [personas_con_pauta_completa] --------------------------------------------------------------
-            
-            DF_intercept_personas_con_pauta_completa = 
-                DF_futuro_prediction %>% 
-                group_by(ccaa) %>% 
-                filter(get(input$variable_name) > poblacion * .7) %>% 
-                filter(fecha_publicacion == min(fecha_publicacion))
-            
-            
+            # Plot Proyeccion --------------------------------------------------------------
             
             plot_proyeccion_personas_con_pauta_completa = 
                 DF_futuro_prediction %>%
                 ggplot(aes_string("fecha_publicacion", input$variable_name, fill = "ccaa")) +
-                
-                # ggplot(aes(fecha_publicacion, input$variable_name, fill = ccaa)) +
                 geom_bar(stat = "identity", aes(alpha = source_alpha)) +
-                # geom_hline(aes(yintercept = poblacion), linetype = "dashed") +
-                geom_hline(aes(yintercept = poblacion * .7), linetype = "dashed", color = "red") +
+                geom_hline(aes(yintercept = (poblacion * INPUT_poblacion_objetivo_debounced())), linetype = "dashed", color = "red") +
                 geom_vline(aes(xintercept = last_day_data), linetype = "dashed", color = "grey") +
-                geom_vline(data = DF_intercept_personas_con_pauta_completa, aes(xintercept = fecha_publicacion), linetype = "dashed", color = "darkgreen") +
-                # annotate(geom = "text", x = as.Date("2021-10-05"), y = 100, label = "Proyección", size = 2) +
+                geom_vline(data = DF_intercept(), aes(xintercept = fecha_publicacion), linetype = "dashed", color = "darkgreen") +
                 theme_minimal(base_size = 16) +
-                # scale_y_continuous(labels = scales::comma, n.breaks = 5) +  
                 scale_y_continuous(labels = scales::label_number_si(), n.breaks = 5) +
-
                 scale_x_date(breaks = "1 month", guide = guide_axis(angle = 90), date_labels = "%Y-%m") +
                 facet_wrap(~ ccaa, scales = "free_y") +
                 theme(legend.position = "none") +
                 labs(x = "", y = "Personas con pauta de vacunación completa",
-                    # title = "Personas con pauta de vacunación completa",
-                    # subtitle = paste0("Proyección desde ", last_day_data),
                     caption = paste0("linea roja = 70% población\n\nDatos extraidos de @datadista. Por @gorkang")
                     )
-            # Usando información del ritmo de vacunación de los últimos ", INPUT_ultimos_n_dias_debounced(), " días\n\n
             
             plot_proyeccion_personas_con_pauta_completa
-                
-                
 
         })
     })
@@ -244,7 +250,12 @@ server <- function(input, output, session) {
             final_plot()
             
         })
-    }, cacheKeyExpr = list(final_df()))
+    },
+    
+    # INCLUDE variables that affect plot!
+    cacheKeyExpr = list(final_df(), DF_intercept(), INPUT_poblacion_objetivo_debounced())
+    
+    )
 
     
     output$downloadPlot <- downloadHandler(
