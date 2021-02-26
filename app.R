@@ -33,6 +33,7 @@ ccaa_menu = read_csv("datos/2915c.csv",
     pull(ccaa)
 
 
+
 # UI ----------------------------------------------------------------------
 
 ui <- 
@@ -59,7 +60,7 @@ ui <-
             div(
                 
             HTML(paste0(
-                "<a href=\"https://gorkang.shinyapps.io/COVID-vacunas/\" style='font-size: 150%'>Vacunación COVID</a>", br(), br(),
+                "<a href=\"https://gorkang.shinyapps.io/COVID-vacunas/\" style='font-size: 150%;'>Vacunación COVID</a>", br(), br(),
                 a(img(src = "github_small.png", title = "Github repository"), href = "https://github.com/gorkang/COVID-vacunas", target = "_blank"), "&nbsp;&nbsp;",
                 a(img(src = "issue_small.png", title = "Report an issue!"), href = "https://github.com/gorkang/COVID-vacunas/issues", target = "_blank"), "&nbsp;&nbsp;",
                 a(img(src = "twitter_small.png", title = "@gorkang"), href = "https://twitter.com/gorkang", target = "_blank"), "&nbsp;&nbsp;", 
@@ -115,21 +116,16 @@ ui <-
         ## Main panel ----
         mainPanel( width = 10,
                    h4(htmlOutput("VARIABLE")),
-                   # uiOutput("VARIABLE", inline = FALSE),
-                   # HTML('<span style="font-size: 150%">Personas con pauta de vacunación completa</span>', 
-                   #      '[<span style="color: ', alpha("#F8766D", 1), ';">Vacunadas</span>, <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>]',
-                   #      '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", style = "float:right;"></a>'),
-            
-            hr(),
-            
-            plotOutput("distPlot", height = "850px", width = "100%"),
-            
-            hr()
-            
-            )
+                   
+                   # Loading ggplot message
+                   tags$head(tags$style(type="text/css", paste0("#loadmessage {position: fixed; top: 0px; left: 0px; width: 100%; padding: 100px 0px 100px 0px; text-align: center; font-weight: bold; font-size: 120%; color: #158C00; background-color: #E0E0E070; z-index: 105;}"))),
+                   conditionalPanel(condition="$('html').hasClass('shiny-busy')", tags$div( "Generando gráfico. Por favor, espera...", id="loadmessage")),
+                   
+                   plotOutput("distPlot", height = "850px", width = "100%"),
+                   hr()
+                   )
         )
     )
-
 }
 
 
@@ -140,7 +136,7 @@ server <- function(input, output, session) {
     # setBookmarkExclude(c('mytable_rows_current'))
     
 
-    # WARNING -----------------------------------------------------------------
+    # Dynamic text (WARNING / VARIABLE)  -----------------------------------------------------------------
     output$WARNING <- renderUI({
         span(
             HTML(
@@ -152,10 +148,16 @@ server <- function(input, output, session) {
     })
 
     output$VARIABLE <- renderUI({
+        
         if (input$variable_name == "dosis_entregadas_totales") variable_text = "Dosis"
         if (input$variable_name == "personas_con_pauta_completa") variable_text = "Vacunadas"
         if (input$variable_name == "dosis_administradas") variable_text = "Dosis"
-        HTML(paste0(stringr::str_to_sentence(gsub("_", " ", input$variable_name), locale = "en"), " a ", final_df()$last_day_data, ' (<span style="color: ', alpha("#F8766D", 1), ';">', variable_text, '</span>, <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>)', '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", style = "float:right;"></a>'))
+        
+        HTML(
+            paste0(stringr::str_to_sentence(gsub("_", " ", input$variable_name), locale = "en"), ' a <span style="font-size: 90%;">', final_df()$last_day_data, '</span>',
+                   '<span style="font-size: 80%;"> <BR><span style="color: ', alpha("#F8766D", 1), ';">', variable_text, '</span> | <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span></span>',
+                   '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", 
+                   style = "position: fixed; top: 0px; right: 0%; width: 200px; padding: 25px 20px 0px 0px;"></a><BR>'))
         })
 
     # Debounce critical vars --------------------------------------------------
@@ -234,7 +236,7 @@ server <- function(input, output, session) {
                 facet_wrap(~ ccaa, scales = "free_y") +
                 theme(legend.position = "none") +
                 labs(x = "", y = "Personas con pauta de vacunación completa",
-                    caption = paste0("linea roja = 70% población\n\nDatos extraidos de @datadista. Por @gorkang")
+                    caption = paste0("linea roja = ", INPUT_poblacion_objetivo_debounced() * 100, "% población. Usando ", INPUT_ultimos_n_dias_debounced(), " días para la estimación.\n\nDatos extraidos de @datadista. Por @gorkang")
                     )
             
             plot_proyeccion_personas_con_pauta_completa
