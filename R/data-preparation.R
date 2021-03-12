@@ -3,7 +3,7 @@ get_vacunas <- function(ccaa_filter, ultimos_n_dias = 21, fecha_final = "2022/6/
   
   
   # Libraries ---------------------------------------------------------------
-  
+
   library(dplyr)
   library(forcats)
   library(ggplot2)
@@ -18,11 +18,13 @@ get_vacunas <- function(ccaa_filter, ultimos_n_dias = 21, fecha_final = "2022/6/
 
 options(scipen = 999)
 
+# ccaa_menu = read_csv("datos/2915c.csv", locale = locale(grouping_mark = "."), col_types = cols(ccaa = col_character(), poblacion = col_number())) %>% pull(ccaa)
+  
 # variable_name = "personas_con_pauta_completa"
-# ccaa_filter = ccaa_menu[1]
-# ccaa_filter = c("España", "Canarias")
+# ccaa_filter = ccaa_menu #ccaa_menu[1]
+# ccaa_filter = c("España", "Canarias", "Asturias")
 # ultimos_n_dias = 21
-# fecha_final = "2022/6/1"
+# fecha_final = "2021/3/10"
 
 
 
@@ -63,30 +65,31 @@ DF =
   select(fecha_publicacion, ccaa, all_of(variable_name)) %>% 
   mutate(source = "vacunas") %>% 
   filter(ccaa %in% ccaa_filter) %>% 
-  mutate(ccaa = as.factor(ccaa)) #ccaa = forcats::fct_relevel(ccaa, "España") # Error si filtro no incluye a España
-
+  mutate(ccaa = as.factor(ccaa), #ccaa = forcats::fct_relevel(ccaa, "España") # Error si filtro no incluye a España
+         fecha_publicacion_N = 1:n())
 
 last_day_data = max(DF %>% filter(source == "vacunas") %>% .$fecha_publicacion)
+last_dayN_data = max(DF %>% filter(source == "vacunas") %>% .$fecha_publicacion_N)
 
+
+# Crea DF con fechas futuras (hasta fecha_final)
 DF_futuro = tibble(ccaa = unique(DF_poblacion$ccaa),
                    !!variable_name := NA) %>% 
   group_by(ccaa) %>% 
   expand_grid(fecha_publicacion = seq(max(DF$fecha_publicacion) + 1, as.Date(fecha_final), "days")) %>% 
-  mutate(source = "prediction")
+  mutate(source = "prediction",
+         fecha_publicacion_N = (last_dayN_data + 1):(last_dayN_data + n()))
 
 
 
 
 # Models-------------------------------------------------------------------
+# ultimos_n_dias = 21
 
 if (length(ccaa_filter) == 1) {
   
-  # model = lm(personas_con_pauta_completa ~ fecha_publicacion,
-  #                           data = DF %>% filter(fecha_publicacion > max(fecha_publicacion) - ultimos_n_dias)) # Usamos datos de los ultimos_n_dias
-
   model = lm(get(variable_name) ~ fecha_publicacion,
              data = DF %>% filter(fecha_publicacion > max(fecha_publicacion) - ultimos_n_dias)) # Usamos datos de los ultimos_n_dias
-  
 
   } else {
   
@@ -94,7 +97,7 @@ if (length(ccaa_filter) == 1) {
              data = DF %>% filter(fecha_publicacion > max(fecha_publicacion) - ultimos_n_dias)) # Usamos datos de los ultimos_n_dias
 }
 
-
+# ggeffects::ggpredict(model, terms = "fecha_publicacion", condition = c(ccaa = "Canarias"))
 
 
 DF_futuro_prediction =

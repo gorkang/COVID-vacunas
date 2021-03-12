@@ -69,22 +69,20 @@ ui <-
                 ),
             align = "center"),
 
-            
             shiny::selectInput(inputId = 'variable_name', 
                                label = 'Variable',
                                choices = c("dosis_entregadas_totales", "personas_con_pauta_completa", "dosis_administradas"),
                                multiple = FALSE, 
                                width = "100%", 
-                               selected = c("personas_con_pauta_completa")),
-        
-                                
+                               selected = c("dosis_administradas")),
+
             shiny::selectInput(inputId = 'ccaa', 
                                label = 'Comunidades autónomas',
                                choices = ccaa_menu,
                                multiple = TRUE, 
                                selectize = TRUE, 
                                width = "100%", 
-                               selected = c(ccaa_menu)),
+                               selected = "España"), # c(ccaa_menu)),
             
             shiny::dateInput("fecha_final", "Proyección hasta", value = "2021-12-31"),
             shiny::sliderInput('ultimos_n_dias', "Días anteriores usados para la previsión", min = 2, max = 60, value = 21, step = 1),
@@ -98,7 +96,6 @@ ui <-
             div(style = "display:inline-block;30%;text-align: center;",
                 downloadButton('downloadPlot', 'Plot')),
             
-            # HTML("<BR><BR>"),
             br(),
             br(),
             
@@ -116,10 +113,11 @@ ui <-
         ## Main panel ----
         mainPanel( width = 10,
                    h4(htmlOutput("VARIABLE")),
+                   htmlOutput("VARIABLE_pie"),
                    
                    # Loading ggplot message
-                   tags$head(tags$style(type="text/css", paste0("#loadmessage {position: fixed; top: 0px; left: 0px; width: 100%; padding: 100px 0px 100px 0px; text-align: center; font-weight: bold; font-size: 120%; color: #158C00; background-color: #E0E0E070; z-index: 105;}"))),
-                   conditionalPanel(condition="$('html').hasClass('shiny-busy')", tags$div( "Generando gráfico. Por favor, espera...", id="loadmessage")),
+                   tags$head(tags$style(type = "text/css", paste0("#loadmessage {position: fixed; top: 0px; left: 0px; width: 100%; padding: 100px 0px 100px 0px; text-align: center; font-weight: bold; font-size: 120%; color: #158C00; background-color: #E0E0E070; z-index: 105;}"))),
+                   conditionalPanel(condition = "$('html').hasClass('shiny-busy')", tags$div( "Generando gráfico. Por favor, espera...", id = "loadmessage")),
                    
                    plotOutput("distPlot", height = "850px", width = "100%"),
                    hr()
@@ -155,11 +153,24 @@ server <- function(input, output, session) {
         
         HTML(
             paste0(stringr::str_to_sentence(gsub("_", " ", input$variable_name), locale = "en"), ' a <span style="font-size: 90%;">', final_df()$last_day_data, '</span>',
-                   '<span style="font-size: 80%;"> <BR><span style="color: ', alpha("#F8766D", 1), ';">', variable_text, '</span> | <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span></span>',
+                   '<span style="font-size: 80%;"> 
+                        <BR><span style="color: ', alpha("#F8766D", 1), ';">', variable_text, '</span> | <span style="color: ', alpha("#F8766D", .2), ';">Previsión</span>
+                   </span>',
                    '<a href=\"http://psicologia.uai.cl/\", target = \"_blank\"><img src=\"UAI_mini.png\", alt ="Universidad Adolfo Ibáñez", 
                    style = "position: fixed; top: 0px; right: 0%; width: 200px; padding: 25px 20px 0px 0px;"></a><BR>'))
         })
 
+    output$VARIABLE_pie <- renderUI({
+        
+        if (input$variable_name == "dosis_entregadas_totales") variable_text_pie = "Vacunas totales entregadas (no todas han sido administradas)<BR>"
+        if (input$variable_name == "personas_con_pauta_completa") variable_text_pie = "Personas completamente inmunizadas (e.g. 2 dosis Pfizer, 1 dosis Jansen)<BR>"
+        if (input$variable_name == "dosis_administradas") variable_text_pie = "Número de dosis individuales administradas<BR>"
+        
+        HTML(paste0('<span style="font-size: 80%;"><span style = "font-size: 13px;">', variable_text_pie, '</span></span>'))
+        
+    })
+    
+    
     # Debounce critical vars --------------------------------------------------
 
     INPUT_ccaa = reactive({input$ccaa})
@@ -227,16 +238,18 @@ server <- function(input, output, session) {
                 DF_futuro_prediction %>%
                 ggplot(aes_string("fecha_publicacion", input$variable_name, fill = "ccaa")) +
                 geom_bar(stat = "identity", aes(alpha = source_alpha)) +
+                # gghighlight::gghighlight() +
+            
                 geom_hline(aes(yintercept = (poblacion * INPUT_poblacion_objetivo_debounced())), linetype = "dashed", color = "red") +
                 geom_vline(aes(xintercept = last_day_data), linetype = "dashed", color = "grey") +
                 geom_vline(data = DF_intercept(), aes(xintercept = fecha_publicacion), linetype = "dashed", color = "darkgreen") +
                 theme_minimal(base_size = 16) +
-                scale_y_continuous(labels = scales::label_number_si(), n.breaks = 5) +
+                scale_y_continuous(labels = scales::label_number_si(), n.breaks = 7) +
                 scale_x_date(breaks = "1 month", guide = guide_axis(angle = 90), date_labels = "%Y-%m") +
                 facet_wrap(~ ccaa, scales = "free_y") +
                 theme(legend.position = "none") +
                 labs(x = "", y = "Personas con pauta de vacunación completa",
-                    caption = paste0("linea roja = ", INPUT_poblacion_objetivo_debounced() * 100, "% población. Usando ", INPUT_ultimos_n_dias_debounced(), " días para la estimación.\n\nDatos extraidos de @datadista. Por @gorkang")
+                    caption = paste0("linea roja = ", INPUT_poblacion_objetivo_debounced() * 100, "% población. Usando ", INPUT_ultimos_n_dias_debounced(), " días para la estimación.\n\n M: millones, K: miles\n\nDatos extraidos de @datadista. Por @gorkang")
                     )
             
             plot_proyeccion_personas_con_pauta_completa
