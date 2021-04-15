@@ -248,7 +248,7 @@ server <- function(input, output, session) {
                 scale_x_date(breaks = "1 month", guide = guide_axis(angle = 90), date_labels = "%Y-%m") +
                 facet_wrap(~ ccaa, scales = "free_y") +
                 theme(legend.position = "none") +
-                labs(x = "", y = "Personas con pauta de vacunación completa",
+                labs(x = "", y = stringr::str_to_sentence(gsub("_", " ", input$variable_name)),
                     caption = paste0("linea roja = ", INPUT_poblacion_objetivo_debounced() * 100, "% población. Usando ", INPUT_ultimos_n_dias_debounced(), " días para la estimación.\n\n M: millones, K: miles\n\nDatos extraidos de @datadista. Por @gorkang")
                     )
             
